@@ -8,14 +8,14 @@
 #include"interrupts_101209704_101303797.hpp"
 
 
-void FCFS(std::vector<PCB> &ready_queue) {
+void priority_s_order(std::vector<PCB> &ready_queue) {
     std::sort( 
                 ready_queue.begin(),
                 ready_queue.end(),
-                []( const PCB &first, const PCB &second ){
-                    return (first.arrival_time > second.arrival_time); 
-                } 
-            );
+                [](const PCB &a, const PCB &b) {
+                    return a.PID < b.PID;   
+        }
+    );
 }
 
 std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std::vector<PCB> list_processes) {
@@ -99,6 +99,7 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
                   [](const PCB &a, const PCB &b) { return a.PID < b.PID; });
 
        if (running.state == NOT_ASSIGNED && !ready_queue.empty()) {
+            priority_s_order(ready_queue);
             running = ready_queue.front();
             ready_queue.erase(ready_queue.begin());
 
@@ -124,7 +125,7 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
             bool io_event = (!finished && running.io_freq > 0 && used > 0 && (used % running.io_freq) == 0 && running.io_duration > 0);
 
     
-        // I/O request has occured
+        // There is an i/o request that has occured
         if (io_event){
             PCB old = running;
 
