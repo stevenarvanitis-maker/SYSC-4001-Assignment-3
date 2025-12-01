@@ -63,13 +63,63 @@ std::tuple<std::string /* add std::string for bonus mark */ > run_simulation(std
 
         ///////////////////////MANAGE WAIT QUEUE/////////////////////////
         //This mainly involves keeping track of how long a process must remain in the ready queue
+        for (std::size_t i = 0; i < wait_queue.size(); ) {
+            PCB &p = wait_queue[i];
+            unsigned int io_end = p.start_time + p.io_duration; // start_time = I/O start
 
+            if (current_time >= io_end) {
+                states old_state = p.state;      
+                p.state = READY;
+                execution_status += print_exec_status(current_time, p.PID, old_state, p.state);
+
+                ready_queue.push_back(p);
+                sync_queue(job_list, p);
+                wait_queue.erase(wait_queue.begin() + i);
+            } else {
+                ++i;
+            }
+        }
         /////////////////////////////////////////////////////////////////
 
         //////////////////////////SCHEDULER//////////////////////////////
-        FCFS(ready_queue); //example of FCFS is shown here
-        /////////////////////////////////////////////////////////////////
+        std::sort(ready_queue.begin(), ready_queue.end(),
+                  [](const PCB &a, const PCB &b) { return a.PID > b.PID; });
 
+        if (running.state != RUNNING && !ready_queue.empty()) {
+            states old_state = ready_queue.back().state; // READY
+            run_process(running, job_list, ready_queue, current_time);
+            execution_status += print_exec_status(current_time, running.PID, old_state, RUNNING);
+        }
+        /////////////////////////////////////////////////////////////////
+        if (running.state == RUNNING) {
+            
+            if (running.remaining_time > 0) {
+                running.remaining_time--;
+            }
+
+            unsigned int used = running.processing_time - running.remaining_time;
+            bool finished = (running.remaining_time == 0);
+            bool do_io   = (!finished && running.io_freq > 0 && used > 0 && (used % running.io_freq) == 0);
+            unsigned int event_time = current_time + 1;
+
+            if (finished) {
+                execution_status += print_exec_status(event_time, running.PID, RUNNING, TERMINATED);
+                terminate_process(running, job_list);
+                idle_CPU(running);
+            } 
+            else if (do_io) {
+                execution_status += print_exec_status(event_time, running.PID, RUNNING, WAITING);
+                running.state = WAITING;
+                running.start_time = event_time;
+                sync_queue(job_list, running);
+                wait_queue.push_back(running);
+                idle_CPU(running);
+            } 
+            else {
+                sync_queue(job_list, running);
+            }
+        }
+        current_time++;
     }
     
     //Close the output table
