@@ -37,80 +37,71 @@ std::tuple<std::string > run_simulation(std::vector<PCB> list_processes) {
     while (job_list.empty() || !all_process_terminated(job_list))
     {
        
-    //Move newly arrived processes into READY queue
+    //arrrived processes should be moved to the ready queue to wait for its turn to use the cpu
         for (auto &p : list_processes)
         {
             if (p.arrival_time == current_time)
             {
-                assign_memory(p);
+                if(assign_memory(p)){
                 p.state = READY;
                 ready_queue.push_back(p);
                 job_list.push_back(p);
                 execution_status += print_exec_status(current_time, p.PID, NEW, READY);
+                }
             }
         }
 
-       
-    //Handle WAIT queue 
-      
+    //This handles the wait queue,processes are kept here when waiting for their i/o to finish to continue using the cpu
         for (size_t i = 0; i < wait_queue.size(); )
         {
             PCB &p = wait_queue[i];
-
-            if (p.io_duration > 0)
-            {
+            if (p.io_duration > 0) {
                 p.io_duration--;
                 sync_queue(job_list, p);
                 i++;
                 continue;
             }
 
-            // I/O finished back to READY
+            // when i/o is finished process goes back to ready state
             p.state = READY;
             ready_queue.push_back(p);
             execution_status += print_exec_status(current_time,p.PID,WAITING,READY);
-
             sync_queue(job_list, p);
+
             wait_queue.erase(wait_queue.begin() + i);
         }
 
         
-    //If CPU idle, pick next process from READY 
-        
+    //If the CPU is idle we are meant to pick next process already in ready state 
         if (running.state == NOT_ASSIGNED && !ready_queue.empty())
         {
             running = ready_queue.front();
             ready_queue.erase(ready_queue.begin());
-
             running.state = RUNNING;
             running.start_time = current_time;
-
             slice_counter = 0;  
             sync_queue(job_list, running);
             execution_status += print_exec_status(current_time, running.PID,READY,RUNNING);
         }
 
         
-    //CPU execution (1 ms)
+    //CPU execution for 1ms
         if (running.state == RUNNING)
         {
             running.remaining_time--;
             sync_queue(job_list, running);
-
             current_time++;
 
-            // I/O request
+            // when doing i/o request
             if (running.io_freq > 0 &&(running.processing_time - running.remaining_time) % running.io_freq == 0 &&
                 running.remaining_time > 0)
             {
                 running.state = WAITING;
                 wait_queue.push_back(running);
-
                 execution_status += print_exec_status(current_time,running.PID,RUNNING,WAITING);
                 idle_CPU(running);
-            
             }
-            //  Finished CPU work 
+            //  after the cpu's work has been finsihed
             else if (running.remaining_time == 0)
             {
                 running.state = TERMINATED;
@@ -120,29 +111,22 @@ std::tuple<std::string > run_simulation(std::vector<PCB> list_processes) {
                 idle_CPU(running);
                
             }
-            // Time slice expired (100 ms)
-            else if (slice_counter == TIME_SLICE)
-            {
+            // we do a time slice of 100ms, when a process has used up its time it getts preempted and placed back to ready queue to allow another process run
+            else if (slice_counter == TIME_SLICE) {
                 running.state = READY;
                 ready_queue.push_back(running);
                 sync_queue(job_list, running);
                 execution_status += print_exec_status(current_time,running.PID,RUNNING,READY);
                 idle_CPU(running);
-                
             }
         }
-    else
-    {
-
+    else {
         current_time++;
-
     }
  }
-
     execution_status += print_exec_footer();
     return std::make_tuple(execution_status);
 }
-
 
 
 int main(int argc, char** argv) {
@@ -152,16 +136,16 @@ int main(int argc, char** argv) {
         std::cout <<"ERROR: expected input file.\n";
         return -1;
     }
-
+    //Ensures that the file actually opens
     std::ifstream input(argv[1]);
     if (!input.is_open()) {
         std::cout << "Cannot open input file.\n";
         return -1;
     }
-
+    //Parse the entire input file and populate a vector of PCBs.
+    //To do so, the add_process() helper function is used (see include file).
     std::vector<PCB> list_process;
     std::string line;
-
     while (std::getline(input, line))
     {
         auto tokens = split_delim(line, ", ");
