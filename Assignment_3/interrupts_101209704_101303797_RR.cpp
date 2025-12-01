@@ -6,7 +6,7 @@
  */
 
 #include"interrupts_101209704_101303797.hpp"
-static const unsigned int TIME_SLICE = 100;
+
 
 void Rnd_Robin(std::vector<PCB> &ready_queue) {
     std::sort( 
@@ -111,7 +111,7 @@ std::tuple<std::string > run_simulation(std::vector<PCB> list_processes) {
                
             }
             // we do a time slice of 100ms, when a process has used up its time it getts preempted and placed back to ready queue to allow another process run
-            else if (slice_counter == TIME_SLICE) {
+            else if (slice_counter == 100) {
                 running.state = READY;
                 ready_queue.push_back(running);
                 sync_queue(job_list, running);
@@ -132,30 +132,37 @@ int main(int argc, char** argv) {
 
     //Get the input file from the user
     if(argc != 2) {
-        std::cout <<"ERROR: expected input file.\n";
+        std::cout << "ERROR!\nExpected 1 argument, received " << argc - 1 << std::endl;
+        std::cout << "To run the program, do: ./interrutps <your_input_file.txt>" << std::endl;
         return -1;
     }
-    //Ensures that the file actually opens
-    std::ifstream input(argv[1]);
-    if (!input.is_open()) {
-        std::cout << "Cannot open input file.\n";
+
+    //Open the input file
+    auto file_name = argv[1];
+    std::ifstream input_file;
+    input_file.open(file_name);
+
+    //Ensure that the file actually opens
+    if (!input_file.is_open()) {
+        std::cerr << "Error: Unable to open file: " << file_name << std::endl;
         return -1;
     }
+
     //Parse the entire input file and populate a vector of PCBs.
     //To do so, the add_process() helper function is used (see include file).
-    std::vector<PCB> list_process;
     std::string line;
-    while (std::getline(input, line))
-    {
-        auto tokens = split_delim(line, ", ");
-        list_process.push_back(add_process(tokens));
+    std::vector<PCB> list_process;
+    while(std::getline(input_file, line)) {
+        auto input_tokens = split_delim(line, ", ");
+        auto new_process = add_process(input_tokens);
+        list_process.push_back(new_process);
     }
-    input.close();
+    input_file.close();
 
     //With the list of processes, run the simulation
     auto [exec] = run_simulation(list_process);
 
-    write_output(exec, "execution.txt");
+    write_output(exec, "output_files/execution.txt");
 
     return 0;
 }
